@@ -4,7 +4,6 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import axios from "axios";
-import { MongoClient } from "mongodb";
 import { connectDB, getDB } from "./db.js";
 
 const PORT = 5000;
