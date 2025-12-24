@@ -12,9 +12,9 @@ export const connectDB = async () => {
 		await client.connect();
 		db = client.db(process.env.DB_NAME);
 
-		console.log("✅ MongoDB Atlas connected");
+		console.log("MongoDB Atlas connected");
 	} catch (error) {
-		console.error("❌ MongoDB connection failed:", error.message);
+		console.error("MongoDB connection failed:", error.message);
 		process.exit(1);
 	}
 };

@@ -12,18 +12,13 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
 app.use(cors({ origin: "http://localhost:5173" }));
 app.use(express.json());
 
-// Constants
 const COLLECTION_SEARCH_HISTORY = "search_history";
 const SERP_API_KEY =
 	"3d9428b1c19eec091baf0b5d917fb7134025552ba20e35a6cd0c64360376aed8";
 
-/* =========================
-   AUTH ROUTES
-========================= */
 
 app.post("/register", async (req, res) => {
 	try {
@@ -119,9 +114,6 @@ app.post("/login", async (req, res) => {
 	}
 });
 
-/* =========================
-   SEARCH ROUTE
-========================= */
 
 app.post("/search", async (req, res) => {
 	const { question } = req.body;
@@ -164,15 +156,13 @@ app.post("/search", async (req, res) => {
 	}
 });
 
-/* =========================
-   SERVER START
-========================= */
+
 
 const startServer = async () => {
 	try {
 		await connectDB();
 		app.listen(PORT, () => {
-			console.log(`🚀 Server running on http://localhost:${PORT}`);
+			console.log(`Server running on http://localhost:${PORT}`);
 		});
 	} catch (error) {
 		console.error("Server failed to start:", error.message);
