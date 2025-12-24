@@ -1,26 +1,29 @@
-import jwt from "jsonwebtoken";
-import bcrypt from "bcrypt";
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import axios from "axios";
-import { connectDB, getDB } from "./db.js";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 
-const PORT = 5000;
+import { connectDB, getDB } from "./db.js";
 
 dotenv.config();
 
 const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Middleware
+app.use(cors({ origin: "http://localhost:5173" }));
 app.use(express.json());
 
-const collectionName = "search_history";
-
+// Constants
+const COLLECTION_SEARCH_HISTORY = "search_history";
 const SERP_API_KEY =
 	"3d9428b1c19eec091baf0b5d917fb7134025552ba20e35a6cd0c64360376aed8";
 
-
-app.use(cors({ origin: "http://localhost:5173" }));
-app.use(express.json());
+/* =========================
+   AUTH ROUTES
+========================= */
 
 app.post("/register", async (req, res) => {
 	try {
@@ -31,10 +34,11 @@ app.post("/register", async (req, res) => {
 				message: "Name, User Name, and Password are required",
 			});
 		}
-		const db=getDB();
-		const usersTableData = db.collection("users");
 
-		const existingUser = await usersTableData.findOne({
+		const db = getDB();
+		const usersCollection = db.collection("users");
+
+		const existingUser = await usersCollection.findOne({
 			username: userName,
 		});
 
@@ -46,26 +50,18 @@ app.post("/register", async (req, res) => {
 
 		const hashedPassword = await bcrypt.hash(password, 10);
 
-		const newEntry = {
+		await usersCollection.insertOne({
 			name,
 			username: userName,
 			password: hashedPassword,
 			createdAt: new Date(),
-		};
-		await usersTableData.insertOne(newEntry);
+		});
 
 		return res.status(201).json({
 			message: "User registered successfully",
 		});
-	} catch (err) {
-		console.error("Error =====>", err.message);
-
-		if (err.code === 11000) {
-			return res.status(409).json({
-				message: "Username already exists",
-			});
-		}
-
+	} catch (error) {
+		console.error("Register Error:", error.message);
 		return res.status(500).json({
 			message: "Internal Server Error",
 		});
@@ -85,12 +81,18 @@ app.post("/login", async (req, res) => {
 		const db = getDB();
 		const usersCollection = db.collection("users");
 
-
 		const user = await usersCollection.findOne({
 			username: userName,
 		});
 
 		if (!user) {
+			return res.status(401).json({
+				message: "Invalid username or password",
+			});
+		}
+
+		const isMatch = await bcrypt.compare(password, user.password);
+		if (!isMatch) {
 			return res.status(401).json({
 				message: "Invalid username or password",
 			});
@@ -109,30 +111,29 @@ app.post("/login", async (req, res) => {
 			message: "Login successful",
 			token,
 		});
-	} catch (err) {
-		console.error("Login Error =====>", err.message);
+	} catch (error) {
+		console.error("Login Error:", error.message);
 		return res.status(500).json({
 			message: "Internal Server Error",
 		});
 	}
 });
 
-app.post("/search", async (req, res) => {
-	const question = req.body.question;
+/* =========================
+   SEARCH ROUTE
+========================= */
 
-	if (!question || typeof question !== "string" || question.trim() === "") {
-		return res
-			.status(400)
-			.json({ message: "Missing search question in request body." });
+app.post("/search", async (req, res) => {
+	const { question } = req.body;
+
+	if (!question || typeof question !== "string" || !question.trim()) {
+		return res.status(400).json({
+			message: "Missing or invalid search question.",
+		});
 	}
 
-	console.log(`Processing Query: ${question}`);
-
-	const BASE_URL = "https://serpapi.com/search";
-	let answer = "Could not find a clear answer for that query.";
-
 	try {
-		const response = await axios.get(BASE_URL, {
+		const response = await axios.get("https://serpapi.com/search", {
 			params: {
 				api_key: SERP_API_KEY,
 				engine: "google",
@@ -140,46 +141,43 @@ app.post("/search", async (req, res) => {
 			},
 		});
 
-		const organicResults = response.data.organic_results;
+		let answer = "Could not find a clear answer.";
 
-		if (organicResults && organicResults.length > 0) {
-			if (organicResults[0].snippet) {
-				answer = organicResults[0].snippet;
-			}
+		const results = response.data?.organic_results;
+		if (results?.length && results[0]?.snippet) {
+			answer = results[0].snippet;
 		}
 
 		const db = getDB();
-		if (db) {
-			const searchHistory = db.collection(collectionName);
-			const newEntry = {
-				question: question,
-				answer: answer,
-				timestamp: new Date(),
-			};
+		await db.collection(COLLECTION_SEARCH_HISTORY).insertOne({
+			question,
+			answer,
+			timestamp: new Date(),
+		});
 
-			searchHistory
-				.insertOne(newEntry)
-				.then(() => console.log(`Stored search query: "${question}"`))
-				.catch((err) => console.error("MongoDB Insertion Error:", err.message));
-		} else {
-			console.warn("MongoDB client not available, skipping data storage.");
-		}
-
-		console.log(`Successfully proxied search for: ${question}`);
-		res.json({ answer: answer });
+		return res.json({ answer });
 	} catch (error) {
-		const axiosError = error.response ? error.response.data : error.message;
-		console.error("SERP API proxy error:", axiosError);
-
-		res
-			.status(500)
-			.json({ message: "Error processing search request through proxy." });
-	}
-});
-async function startServer(){
-	await connectDB();
-	app.listen(PORT, () => {
-			console.log(`server running on http://127.0.0.1:${PORT}`);
+		console.error("Search Error:", error.message);
+		return res.status(500).json({
+			message: "Error processing search request.",
 		});
 	}
+});
+
+/* =========================
+   SERVER START
+========================= */
+
+const startServer = async () => {
+	try {
+		await connectDB();
+		app.listen(PORT, () => {
+			console.log(`🚀 Server running on http://localhost:${PORT}`);
+		});
+	} catch (error) {
+		console.error("Server failed to start:", error.message);
+		process.exit(1);
+	}
+};
+
 startServer();

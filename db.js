@@ -1,29 +1,24 @@
+const url = "mongodb://127.0.0.1:27017";
 import { MongoClient } from "mongodb";
 
-const SERVER_TIMEOUT_MS = 5000;
-const url = "mongodb://localhost:27017/questionsDB";
-const dbName = "questionsDB";
-
-
-const mongoClient = new MongoClient(url, {
-	serverSelectionTimeoutMS: SERVER_TIMEOUT_MS,
-});
 let db;
-export async function connectDB() {
+
+export const connectDB = async () => {
 	try {
-		await mongoClient.connect();
-		db = mongoClient.db(dbName);
-		console.log("MongoDB successfully connected to questionsDB");
+		const client = new MongoClient(process.env.MONGODB_URI);
+		await client.connect();
+
+		db = client.db(process.env.DB_NAME);
+		console.log("✅ MongoDB connected successfully");
 	} catch (error) {
-		console.error("Failed to connect to MongoDB or start server:");
-		console.error("Check 1: Is your MongoDB service running on 27017?");
-		console.error("Error details:", error.message);
+		console.error("❌ MongoDB connection failed:", error.message);
 		process.exit(1);
 	}
-}
-export function getDB() {
+};
+
+export const getDB = () => {
 	if (!db) {
-		throw new Error("Database not initialized. Call connectDB first.");
+		throw new Error("Database not initialized");
 	}
 	return db;
-}
+};
