@@ -16,15 +16,12 @@ app.use(cors({ origin: "http://localhost:5173" }));
 app.use(express.json());
 
 const COLLECTION_SEARCH_HISTORY = "search_history";
-const SERP_API_KEY =
-	"3d9428b1c19eec091baf0b5d917fb7134025552ba20e35a6cd0c64360376aed8";
-
+const SERP_API_KEY = process.env.SERP_API_KEY;
 
 app.post("/register", async (req, res) => {
 	try {
-		const { name = "", userName = "", password = "" } = req.body;
-
-		if (!name || !userName || !password) {
+		const { name, username, password } = req.body;
+		if (!name || !username || !password) {
 			return res.status(400).json({
 				message: "Name, User Name, and Password are required",
 			});
@@ -34,7 +31,7 @@ app.post("/register", async (req, res) => {
 		const usersCollection = db.collection("users");
 
 		const existingUser = await usersCollection.findOne({
-			username: userName,
+			username: username,
 		});
 
 		if (existingUser) {
@@ -47,7 +44,7 @@ app.post("/register", async (req, res) => {
 
 		await usersCollection.insertOne({
 			name,
-			username: userName,
+			username: username,
 			password: hashedPassword,
 			createdAt: new Date(),
 		});
@@ -65,9 +62,9 @@ app.post("/register", async (req, res) => {
 
 app.post("/login", async (req, res) => {
 	try {
-		const { userName = "", password = "" } = req.body;
+		const { username = "", password = "" } = req.body;
 
-		if (!userName || !password) {
+		if (!username || !password) {
 			return res.status(400).json({
 				message: "Username and password are required",
 			});
@@ -99,7 +96,7 @@ app.post("/login", async (req, res) => {
 				username: user.username,
 			},
 			process.env.JWT_SECRET,
-			{ expiresIn: "24h" }
+			{ expiresIn: "24h" },
 		);
 
 		return res.status(200).json({
@@ -113,7 +110,6 @@ app.post("/login", async (req, res) => {
 		});
 	}
 });
-
 
 app.post("/search", async (req, res) => {
 	const { question } = req.body;
@@ -155,8 +151,6 @@ app.post("/search", async (req, res) => {
 		});
 	}
 });
-
-
 
 const startServer = async () => {
 	try {
