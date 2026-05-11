@@ -2,10 +2,11 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import axios from "axios";
-import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
+import user from "./models/user.js";
 
-import { connectDB, getDB } from "./db.js";
+import db,{ connectDB, getDB } from "./db.js";
 
 dotenv.config();
 
@@ -28,13 +29,7 @@ app.post("/register", async (req, res) => {
 		}
 
 		const db = getDB();
-		const usersCollection = db.collection("users");
-
-		const existingUser = await usersCollection.findOne({
-			username: username,
-		});
-
-		if (existingUser) {
+		if (existinguser) {
 			return res.status(409).json({
 				message: "Username already exists",
 			});
@@ -42,7 +37,7 @@ app.post("/register", async (req, res) => {
 
 		const hashedPassword = await bcrypt.hash(password, 10);
 
-		await usersCollection.insertOne({
+		await UserCollection.insertOne({
 			name,
 			username: username,
 			password: hashedPassword,
@@ -63,27 +58,28 @@ app.post("/register", async (req, res) => {
 app.post("/login", async (req, res) => {
 	try {
 		const { username = "", password = "" } = req.body;
-
+		console.log(username);
+		console.log(password);
 		if (!username || !password) {
 			return res.status(400).json({
 				message: "Username and password are required",
 			});
 		}
 
-		const db = getDB();
-		const usersCollection = db.collection("users");
 
-		const user = await usersCollection.findOne({
-			username: userName,
+		const User = await user.findOne({ 
+			username,
+			password,
 		});
+		console.log(User)
 
-		if (!user) {
+		if (!User) {
 			return res.status(401).json({
 				message: "Invalid username or password",
 			});
 		}
-
-		const isMatch = await bcrypt.compare(password, user.password);
+		
+		const isMatch = await bcrypt.compare(password, User.password);
 		if (!isMatch) {
 			return res.status(401).json({
 				message: "Invalid username or password",
@@ -92,13 +88,13 @@ app.post("/login", async (req, res) => {
 
 		const token = jwt.sign(
 			{
-				userId: user._id,
-				username: user.username,
+				userId: User._id,
 			},
 			process.env.JWT_SECRET,
-			{ expiresIn: "24h" },
+			{
+				expiresIn: "24h",
+			},
 		);
-
 		return res.status(200).json({
 			message: "Login successful",
 			token,
